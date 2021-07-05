@@ -171,6 +171,7 @@ I32  fill_image_with_hourglasses(image *imgOut);
 I32  fill_framebuffer_with_hourglasses(char *pcFramebufferDev, I32 dx, I32 dy);
 void print_image_to_stdout(image *img, int stp, int goUpIff1);
 void print_image_info(int sequence, long ts1, long ts2, unsigned int pixelformat, char *st, int dx, int dy, int pitch);
+void print_bayer_pattern(char *st, int x, int y, int pitch);
 void timemeasurement_start(struct  timeval *timer);
 void timemeasurement_stop(struct  timeval *timer, I64 *s, I64 *us);
 #ifdef __cplusplus
@@ -253,7 +254,7 @@ int  main(int argc, char *argv[])
 
 		optMaxCaptures = -1;
 
-		rc =  change_options_by_commandline(argc, argv, &optShutter, &optGain, &optMaxCaptures, &optFBOutIff1, acFramebufferDev, 
+		rc =  change_options_by_commandline(argc, argv, &optShutter, &optGain, &optMaxCaptures, &optFBOutIff1, acFramebufferDev,
 			&optStdOutIff1, &optFileOutIff1, &optBufCount, &optVideoDevId, &optWidth, &optHeight, &optX0, &optY0, 
 			&imageInfo, &bitShift, &fps, &cfgWB);
 		if(rc>0){ee=0; goto quit;}
@@ -328,7 +329,7 @@ int  main(int argc, char *argv[])
 		rc =  capture_buffer_dequeue(bufIdx, &sen, &sequence, &timestamp);
 		if(rc>0){continue;} // Buffer not yet available, wait again, should not happen if using sleep_for_next_capture().
 		if(rc<0){ee=-9+100*rc; goto quit;}
-
+		
 		if(0==last_timestamp) {
 			frame_time = 0;
 		} else {
@@ -346,6 +347,20 @@ int  main(int argc, char *argv[])
 					print_image_info(sequence, timestamp, frame_time, sen.format.fmt.pix.pixelformat, sen.qbuf[bufIdx].st[0], 
 						sen.format.fmt.pix.width, sen.format.fmt.pix.height, sen.format.fmt.pix_mp.plane_fmt[0].bytesperline);
 					break;
+			}
+		}
+		if(2==imageInfo) {
+			switch(sen.format.type)	{
+			case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+				print_bayer_pattern(sen.qbuf[bufIdx].st[0], 
+					sen.format.fmt.pix.bytesperline/2, sen.format.fmt.pix.height/2, 
+					sen.format.fmt.pix.bytesperline);
+				break;
+			case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+				print_bayer_pattern(sen.qbuf[bufIdx].st[0], 
+					sen.format.fmt.pix_mp.plane_fmt[0].bytesperline/2, sen.format.fmt.pix.height/2, 
+					sen.format.fmt.pix_mp.plane_fmt[0].bytesperline);
+				break;
 			}
 		}
 
@@ -501,11 +516,11 @@ int process_capture(unsigned int pixelformat, char *st, int dx, int dy, int pitc
 				if(rc<0){ee=-5+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y12:
-				rc =  convert_16bit_to_image(&imgConverted,  st, dx, dy, dx, 12, 0);
+				rc =  convert_16bit_to_image(&imgConverted,  st, dx, dy, dx, 12, bitShift);
 				if(rc<0){ee=-6+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y10:
-				rc =  convert_16bit_to_image(&imgConverted,  st, dx, dy, dx, 10, 0);
+				rc =  convert_16bit_to_image(&imgConverted,  st, dx, dy, dx, 10, bitShift);
 				if(rc<0){ee=-7+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y10P:
@@ -608,7 +623,7 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *
 
 	cfgWB->mode = WBMODE_INACTIVE;
 
-	while((opt =  getopt(argc, argv, "g:s:i:afpx4b:od:r:w:")) != -1)
+	while((opt =  getopt(argc, argv, "g:s:i:xy46fpab:od:r:w:")) != -1)
 	{
 		switch(opt)
 		{
@@ -641,7 +656,9 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *
 				printf("       For example: -w '123 145 167'                                           \n");
 				printf("       Note that you may need also apply an IR filter for better visual colors.\n");
 				printf("  -x,  Output image info and the first 20 bytes of the image in hex notation.  \n");
+				printf("  -y,  Output a decimal formated bayer pattern in the center of the image      \n");
 				printf("  -4,  Apply a 4 bit right shift to the image raw data.                        \n");
+				printf("  -6,  Apply a 6 bit right shift to the image raw data.                        \n");
 				printf("_______________________________________________________________________________\n");
 				printf("                                                                               \n");
 				return(+1);
@@ -656,7 +673,9 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *
 			case 'r':  if(4 == sscanf(optarg, "(%d,%d)/%dx%d", x0, y0, width, height)){ printf("Setting ROI: (x0,y0):(%d,%d), (dx,dy):(%d,%d)\n", *x0, *y0, *width, *height); } else { *x0 = *y0 = *width = *height = -1; }  break;
 			case 's':  *shutter    = atol(optarg);  printf("Setting Shutter Value to %d.\n",*shutter);  break;
 			case 'x':  *imageInfo  = 1;             printf("Printing image info for every acquired image.\n"); break;
-			case '4':  *bitShift   = 1;             printf("Image raw data will be shifted 4 bits right.\n"); break;
+			case 'y':  *imageInfo  = 2;             printf("Printing bayer pattern.\n"); break;
+			case '4':  *bitShift   = 4;             printf("Image raw data will be shifted 4 bits right.\n"); break;
+			case '6':  *bitShift   = 6;             printf("Image raw data will be shifted 6 bits right.\n"); break;
 			case 'w':
 			{
 				//at beginning of function:  cfgWB->mode = WBMODE_INACTIVE;
@@ -1970,6 +1989,18 @@ void print_line_byte(char *st, int x1, int x2, int y, int pitch)
 	printf("\n");
 }
 
+void print_bayer_pattern(char *st, int x, int y, int pitch)
+{
+	int shift = 6;
+	U16 val1 = *(U16 *)&st[(y  )*pitch + x  ] >> shift;
+	U16 val2 = *(U16 *)&st[(y  )*pitch + x+2] >> shift;
+	U16 val3 = *(U16 *)&st[(y+1)*pitch + x  ] >> shift;
+	U16 val4 = *(U16 *)&st[(y+1)*pitch + x+2] >> shift;
+	printf("\033[2J\033[1;1H");
+	printf("(%4d, %4d) %4d %4d\n", x, y, val1, val2);
+	printf("             %4d %4d\n",     val3, val4);
+}
+
 void print_line_bit(char *st, int x1, int x2, int y, int pitch)
 {
 	for (int x=x1; x<=x2; x++) {
@@ -2017,65 +2048,7 @@ void print_image_info(int sequence, long ts1, long ts2, unsigned int pixelformat
 * @param  bufOut     8 Bit Grey Value Output Address.
 */
 /*-----------------------------------------------------------------------------*/
-inline void  FL_CPY_10AS16BIT_U8P_BITSHIFT(U32 count, char *bufIn, U8 *bufOut)
-{
-	while(count >= 8)
-	{
-		U64 *in1, in2;
-
-		in1 = ((U64*)bufIn);
-
-		// *** VC MIPI ************************************************
-		// in2 = ((*in1 & 0x0003000300030003) << 14)|(*in1 >> 2);
-		in2 = ((*in1 & 0x0030003000300030) << 10) | (*in1 >> 6);		
-		// ************************************************************
-		
-		*bufOut = *(((U8*)&in2)+0);
-		bufOut++;
-		*bufOut = *(((U8*)&in2)+2);
-		bufOut++;
-		*bufOut = *(((U8*)&in2)+4);
-		bufOut++;
-		*bufOut = *(((U8*)&in2)+6);
-		bufOut++;
-
-		bufIn+=8;
-
-		count -= 4;
-	}
-	while(count >= 4)
-	{
-		U32 *in1, in2;
-
-		in1 = ((U32*)bufIn);
-
-		// *** VC MIPI ************************************************
-		// in2 = ((*in1 & 0x00030003) << 14)|(*in1 >> 2);
-		in2 = ((*in1 & 0x00030003) << 10)|(*in1 >> 6);
-		// ************************************************************
-
-		*bufOut = *(((U8*)&in2)+0);
-		bufOut++;
-		*bufOut = *(((U8*)&in2)+2);
-		bufOut++;
-
-		bufIn+=4;
-
-		count -= 2;
-	}
-	while(count--)
-	{
-		// *** VC MIPI ************************************************
-		// *bufOut = (U8)( (*(bufIn+0)>>2) | (*(bufIn+1)<<6) );
-		*bufOut = 0x00;
-		// ************************************************************
-		bufIn++;
-		bufIn++;
-		bufOut++;
-	}
-}
-
-inline void  FL_CPY_10AS16BIT_U8P(U32 count, char *bufIn, U8 *bufOut, int bitShift)
+inline void  FL_CPY_10AS16BIT_U8P(U32 count, char *bufIn, U8 *bufOut)
 {
 	while(count >= 8)
 	{
@@ -2124,6 +2097,73 @@ inline void  FL_CPY_10AS16BIT_U8P(U32 count, char *bufIn, U8 *bufOut, int bitShi
 		bufOut++;
 	}
 }
+
+// *** VC MIPI ****************************************************************
+inline void  FL_CPY_10AS16BIT_U8P_BITSHIFT4(U32 count, char *bufIn, U8 *bufOut)
+{
+	while(count >= 8)
+	{
+		U64 *in1, in2;
+
+		in1 = ((U64*)bufIn);
+		// in2 = ((*in1 & 0x0003000300030003) << 14)|(*in1 >> 2);
+		in2 = ((*in1 & 0x0030003000300030) << 10) | (*in1 >> 6);
+
+		*bufOut = *(((U8*)&in2)+0);
+		bufOut++;
+		*bufOut = *(((U8*)&in2)+2);
+		bufOut++;
+		*bufOut = *(((U8*)&in2)+4);
+		bufOut++;
+		*bufOut = *(((U8*)&in2)+6);
+		bufOut++;
+
+		bufIn+=8;
+
+		count -= 4;
+	}
+	while(count >= 4)
+	{
+		U32 *in1, in2;
+
+		in1 = ((U32*)bufIn);
+		// in2 = ((*in1 & 0x00030003) << 14)|(*in1 >> 2);
+		in2 = ((*in1 & 0x00030003) << 10)|(*in1 >> 6);
+
+
+		*bufOut = *(((U8*)&in2)+0);
+		bufOut++;
+		*bufOut = *(((U8*)&in2)+2);
+		bufOut++;
+
+		bufIn+=4;
+
+		count -= 2;
+	}
+	while(count--)
+	{
+		// *bufOut = (U8)( (*(bufIn+0)>>2) | (*(bufIn+1)<<6) );
+		*bufOut = 0x00;
+
+		bufIn++;
+		bufIn++;
+		bufOut++;
+	}
+}
+// ****************************************************************************
+
+// *** VC MIPI ****************************************************************
+inline void  FL_CPY_10AS16BIT_U8P_BITSHIFT6(U32 count, char *bufIn, U8 *bufOut)
+{
+	int xIn = 1;
+	int xOut = 0;
+	while(xIn<2*count-1) {
+		bufOut[xOut] = bufIn[xIn];
+		xIn += 2;
+		xOut++;
+	}	
+}
+// ****************************************************************************
 
 
 /*--*FUNCTION*-----------------------------------------------------------------*/
@@ -2232,27 +2272,38 @@ I32  convert_16bit_to_image(image *imgOut, char *bufIn, I32 v4lDx, I32 v4lDy, I3
 		case 10:
 		{
 			// *** VC MIPI ****************************************
-			if (bitShift == 1) {
+			if (bitShift == 4) {
 				#if _OPENMP
 					#   pragma omp parallel for
-				#endif
+				#endif			
 				for(y= 0; y< min(imgOut->dy,v4lDy)-1; y++)
 				{
 					char *in  =       bufIn + (y + 1) * (2*v4lPitch);
 					U8   *out =  imgOut->st + y * imgOut->pitch;
 
-					FL_CPY_10AS16BIT_U8P_BITSHIFT(dx, in, out);
+					FL_CPY_10AS16BIT_U8P_BITSHIFT4(dx, in, out);
+				}
+			} else if (bitShift == 6) {
+				#if _OPENMP
+					#   pragma omp parallel for
+				#endif			
+				for(y= 0; y< min(imgOut->dy,v4lDy); y++)
+				{
+					char *in  =       bufIn + y * (2*v4lPitch);
+					U8   *out =  imgOut->st + y * imgOut->pitch;
+
+					FL_CPY_10AS16BIT_U8P_BITSHIFT6(dx, in, out);
 				}
 			} else {
 				#if _OPENMP
 					#   pragma omp parallel for
 				#endif
-				for(y= 0; y< min(imgOut->dy,v4lDy)-1; y++)
+				for(y= 0; y< min(imgOut->dy,v4lDy); y++)
 				{
 					char *in  =       bufIn + y * (2*v4lPitch);
 					U8   *out =  imgOut->st + y * imgOut->pitch;
 
-					FL_CPY_10AS16BIT_U8P(dx, in, out, 0);
+					FL_CPY_10AS16BIT_U8P(dx, in, out);
 				}
 			}
 			// ****************************************************
