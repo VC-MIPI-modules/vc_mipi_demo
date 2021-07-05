@@ -3,7 +3,7 @@
 usage() {
 	echo "Usage: $0 [options]"
 	echo ""
-	echo "Build kernel image, modules, device tree, u-boot script and test tools."
+	echo "Build all software tools."
 	echo ""
 	echo "Supported options:"
         echo "-a, --all                 Build all"

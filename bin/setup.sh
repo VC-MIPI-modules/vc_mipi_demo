@@ -3,7 +3,7 @@
 usage() {
 	echo "Usage: $0 [options]"
 	echo ""
-	echo "Setup host and target for development and testing."
+	echo "Setup host for development."
 	echo ""
 	echo "Supported options:"
 	echo "-h, --help                Show this help text"
