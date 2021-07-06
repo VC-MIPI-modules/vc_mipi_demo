@@ -27,11 +27,32 @@
    ```
 
 # Usage
-The demo per default outputs as ascii art. Call the demo with the command line option -? to see other outputs:
+Before you start image streaming you should setup your video device to define the pixelformat and image resolution. 
 ``` 
-  $ ./vcmipidemo -?
+  # v4l2-ctl --set-fmt-video=pixelformat=RG10,width=3840,height=3040
 ```
-If you cannot see anything, try to set the shutter and gain values.
+
+## Image streaming to the console
+The demo per default outputs as ASCII art. You can adjust exposure (shutter) and gain by using the ```-s``` and ```-g``` options.
+``` 
+  # ./vcmipidemo -s 1000 -g 10
+```
+
+## Image streaming to a framebuffer
+If you have a display attached and a kernel with framebuffer support, you can get a better image output by streaming it to the framebuffer. Suppress the default ASCII art output with -a and active the framebuffer output with ```-f```.
+``` 
+  # ./vcmipidemo -af -s 1000 -g 10
+```
+To see some raw image informations for each captured image activate that output with ```-x```.
+``` 
+  # ./vcmipidemo -afx -s 1000 -g 10
+```
+
+## Image streaming to the file system
+To store images to the file system use the ```-o``` option. You will get a sequence of image files in ppm format.
+``` 
+  # ./vcmipidemo -ao 1000 -g 10
+```
 
 ## Image streaming via network
 If your have a headless hardware setup, you can stream the image via network by using the VCImgNetSrv and VCImgNetClient.
