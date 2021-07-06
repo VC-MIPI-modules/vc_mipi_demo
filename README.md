@@ -21,11 +21,10 @@
      $ ./setup.sh --host
    ```
 
-4. Build vcmipidemo and vcimgnetsrv.
+4. Build vcmipidemo and vcimgnetsrv. You can find the built binaries in the ```src``` directory.
    ```
      $ ./build.sh --all
    ```
-   You can find the built binaries in the ```src``` directory.
 
 # Usage
 The demo per default outputs as ascii art. Call the demo with the command line option -? to see other outputs:
@@ -59,7 +58,7 @@ If your have a headless hardware setup, you can stream the image via network by 
        # ./vcimgnetsrv
        Start VC Image Net Server ...
        Listen on port 2002
-       _Client connected!_
+       Client connected!
      ```
     * The plain gray mainframe in the VCImgNetClient window should change to a diagonal hatched pattern. 
       A moving bar shows that the app is waiting to receive image data.   
