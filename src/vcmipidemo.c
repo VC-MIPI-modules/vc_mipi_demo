@@ -152,7 +152,7 @@ int  capture_buffer_dequeue(I32 bufIdx, VCMipiSenCfg *sen, __u32 *sequence, long
 int  sleep_for_next_capture(VCMipiSenCfg  *sen, int timeoutUS);
 int  imgnet_connect(VCImgNetCfg *imgnetCfg, U32 pixelformat, int dx, int dy);
 int  imgnet_disconnect(VCImgNetCfg *imgnetCfg);
-int  process_capture(unsigned int pixelformat, char *st, int dx, int dy, int pitch, int bitShift, int stdOutIff1, int netSrvOutIff1, VCImgNetCfg *imgnetCfg, int fbOutIff1, int fileOutIff1, int frameNr, char *pcFramebufferDev, VCWhiteBalCfg *cfgWB);
+int  process_capture(image *imgConverted, unsigned int pixelformat, char *st, int dx, int dy, int pitch, int bitShift, int stdOutIff1, int netSrvOutIff1, VCImgNetCfg *imgnetCfg, int fbOutIff1, int fileOutIff1, int frameNr, char *pcFramebufferDev, VCWhiteBalCfg *cfgWB);
 I32  process_whitebalance(image *img, VCWhiteBalCfg *cfgWB);
 I32  copy_grey_to_image(image *imgOut, char *bufIn, I32 v4lX0, I32 v4lY0, I32 v4lDx, I32 v4lDy, I32 v4lPitch, I32 v4lPaddingBytes);
 I32  convert_raw10_to_image(image *imgOut, char *bufIn, U8 trackOffset, I32 v4lX0, I32 v4lY0, I32 v4lDx, I32 v4lDy, I32 v4lPitch, I32 v4lPaddingBytes);
@@ -221,9 +221,10 @@ int  main(int argc, char *argv[])
 	int            optShutter, optMaxCaptures, optFBOutIff1, optStdOutIff1, optBufCount, optFileOutIff1, optVideoDevId;
 	int            optWidth, optHeight, optX0, optY0, bitShift, imageInfo, fps;
 	float          optGain;
-	VCMipiSenCfg   sen       = NULL_VCMipiSenCfg;
-	VCImgNetCfg    imgnetCfg = NULL_VCImgNetCfg;
-	VCWhiteBalCfg  cfgWB     = NULL_VCWhiteBalCfg;
+	VCMipiSenCfg   sen          = NULL_VCMipiSenCfg;
+	image  	       imgConverted = NULL_IMAGE;
+	VCImgNetCfg    imgnetCfg    = NULL_VCImgNetCfg;
+	VCWhiteBalCfg  cfgWB        = NULL_VCWhiteBalCfg;
 
 	// Handling pressing of CTRL-C to quit sane.
 	{
@@ -394,16 +395,16 @@ int  main(int argc, char *argv[])
 		
 		if(1==optStdOutIff1 || 1==netSrvIff1 || 1==optFBOutIff1 || 1==optFileOutIff1) {
 			processed_sequence++;
-
+		
 			switch(sen.format.type)
 			{
 				case V4L2_BUF_TYPE_VIDEO_CAPTURE:
-					rc =  process_capture(sen.format.fmt.pix.pixelformat, sen.qbuf[bufIdx].st[0], 
+					rc =  process_capture(&imgConverted, sen.format.fmt.pix.pixelformat, sen.qbuf[bufIdx].st[0], 
 						sen.format.fmt.pix.width, sen.format.fmt.pix.height, sen.format.fmt.pix.bytesperline, 
 						bitShift, optStdOutIff1, netSrvIff1, &imgnetCfg, optFBOutIff1, optFileOutIff1, frameNr++, acFramebufferDev, &cfgWB);
 					break;
 				case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
-					rc =  process_capture(sen.format.fmt.pix_mp.pixelformat, sen.qbuf[bufIdx].st[0], 
+					rc =  process_capture(&imgConverted, sen.format.fmt.pix_mp.pixelformat, sen.qbuf[bufIdx].st[0], 
 						sen.format.fmt.pix_mp.width, sen.format.fmt.pix_mp.height, sen.format.fmt.pix_mp.plane_fmt[0].bytesperline, 
 						bitShift, optStdOutIff1, netSrvIff1, &imgnetCfg, optFBOutIff1, optFileOutIff1, frameNr++, acFramebufferDev, &cfgWB);
 					break;
@@ -444,6 +445,12 @@ int  main(int argc, char *argv[])
 quit:
 	if(ee!=0){ printf("\n  '%s' quits with error code: %d\n\n", argv[0], ee); }
 
+	if(NULL!=imgConverted.st) 
+	{ 
+		free(imgConverted.st);  
+		imgConverted.st = NULL; 
+	}
+
 	sensor_close(&sen);
 
 	if(1==netSrvIff1)
@@ -462,10 +469,9 @@ quit:
 *  This function processes a capture image by copying it to selected outputs.
 */
 /*-----------------------------------------------------------------------------*/
-int process_capture(unsigned int pixelformat, char *st, int dx, int dy, int pitch, int bitShift, int stdOutIff1, int netSrvOutIff1, VCImgNetCfg *imgnetCfg, int fbOutIff1, int fileOutIff1, int frameNr, char *pcFramebufferDev, VCWhiteBalCfg *cfgWB)
+int process_capture(image *imgConverted, unsigned int pixelformat, char *st, int dx, int dy, int pitch, int bitShift, int stdOutIff1, int netSrvOutIff1, VCImgNetCfg *imgnetCfg, int fbOutIff1, int fileOutIff1, int frameNr, char *pcFramebufferDev, VCWhiteBalCfg *cfgWB)
 {
 	int    rc, ee;
-	image  imgConverted = NULL_IMAGE;
 	char   acFilename[256];
 
 	// Allocate temporary image
@@ -479,7 +485,7 @@ int process_capture(unsigned int pixelformat, char *st, int dx, int dy, int pitc
 			case V4L2_PIX_FMT_SRGGB8:
 			case V4L2_PIX_FMT_SBGGR8:
 			case V4L2_PIX_FMT_YUYV:
-				imgConverted.type  = IMAGE_RGB;
+				imgConverted->type  = IMAGE_RGB;
 				break;
 			case V4L2_PIX_FMT_GREY:
 			case V4L2_PIX_FMT_Y14P:
@@ -487,63 +493,66 @@ int process_capture(unsigned int pixelformat, char *st, int dx, int dy, int pitc
 			case V4L2_PIX_FMT_Y12:
 			case V4L2_PIX_FMT_Y10:
 			case V4L2_PIX_FMT_Y10P:
-				imgConverted.type  = IMAGE_GREY;
+				imgConverted->type  = IMAGE_GREY;
 				break;
 			default: ee=-1; goto fail;
 		}
-		imgConverted.dx    = dx;
-		imgConverted.dy    = dy;
-		imgConverted.pitch = imgConverted.dx;
-		// imgConverted.pitch = pitch;
-		imgConverted.st    = (U8*) malloc(3 * sizeof(U8) * imgConverted.dy * imgConverted.pitch);
-		if(NULL==imgConverted.st){ee=-2; goto fail;}
-		imgConverted.ccmp1 = imgConverted.st + 1 * sizeof(U8) * imgConverted.dy * imgConverted.pitch;
-		imgConverted.ccmp2 = imgConverted.st + 2 * sizeof(U8) * imgConverted.dy * imgConverted.pitch;
+		imgConverted->dx    = dx;
+		imgConverted->dy    = dy;
+		imgConverted->pitch = imgConverted->dx;
+		// imgConverted->pitch = pitch;
+		if(imgConverted->st == NULL) {
+			imgConverted->st    = (U8*) malloc(3 * sizeof(U8) * imgConverted->dx * imgConverted->pitch);
+		}
+
+		if(NULL==imgConverted->st){ee=-2; goto fail;}
+		imgConverted->ccmp1 = imgConverted->st + 1 * sizeof(U8) * imgConverted->dy * imgConverted->pitch;
+		imgConverted->ccmp2 = imgConverted->st + 2 * sizeof(U8) * imgConverted->dy * imgConverted->pitch;
 	}
 
 	switch(pixelformat)
 	{
 		case V4L2_PIX_FMT_GREY:
-				rc =  copy_grey_to_image(&imgConverted,  st,  0, 0, dx, dy, dx, 0);
+				rc =  copy_grey_to_image(imgConverted,  st,  0, 0, dx, dy, dx, 0);
 				if(rc<0){ee=-3+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y14P:
-				rc =  convert_raw14_to_image(&imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (14 * dx)/8);
+				rc =  convert_raw14_to_image(imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (14 * dx)/8);
 				if(rc<0){ee=-4+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y12P:
-				rc =  convert_raw12_to_image(&imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (12 * dx)/8);
+				rc =  convert_raw12_to_image(imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (12 * dx)/8);
 				if(rc<0){ee=-5+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y12:
-				rc =  convert_16bit_to_image(&imgConverted,  st, dx, dy, dx, 12, bitShift);
+				rc =  convert_16bit_to_image(imgConverted,  st, dx, dy, dx, 12, bitShift);
 				if(rc<0){ee=-6+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y10:
-				rc =  convert_16bit_to_image(&imgConverted,  st, dx, dy, dx, 10, bitShift);
+				rc =  convert_16bit_to_image(imgConverted,  st, dx, dy, dx, 10, bitShift);
 				if(rc<0){ee=-7+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y10P:
-				rc =  convert_raw10_to_image(&imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (10 * dx)/8);
+				rc =  convert_raw10_to_image(imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (10 * dx)/8);
 				if(rc<0){ee=-8+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_SRGGB10P:
 		case V4L2_PIX_FMT_SBGGR10P:
-				rc =  convert_raw10_and_debayer_image(&imgConverted, st, pixelformat, 0,  0, 0, dx, dy, dx, pitch - (10 * dx)/8);
+				rc =  convert_raw10_and_debayer_image(imgConverted, st, pixelformat, 0,  0, 0, dx, dy, dx, pitch - (10 * dx)/8);
 				if(rc<0){ee=-9+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_SRGGB10: //or RG10
 		case V4L2_PIX_FMT_SBGGR10: //or BG10
-				rc =  convert_srggb10_and_debayer_image(&imgConverted, st, pixelformat, dx, dy, dx, 10, bitShift);
+				rc =  convert_srggb10_and_debayer_image(imgConverted, st, pixelformat, dx, dy, dx, 10, bitShift);
 				if(rc<0){ee=-10+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_SRGGB8:
 		case V4L2_PIX_FMT_SBGGR8:
-				rc =  simple_debayer_to_image(&imgConverted, st, pixelformat, 0, 0, dx, dy, dx, 0);
+				rc =  simple_debayer_to_image(imgConverted, st, pixelformat, 0, 0, dx, dy, dx, 0);
 				if(rc<0){ee=-11+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_YUYV:
-				rc =  convert_yuyv_to_image(&imgConverted, st, 0, 0, dx, dy, dx, 0);
+				rc =  convert_yuyv_to_image(imgConverted, st, 0, 0, dx, dy, dx, 0);
 				if(rc<0){ee=-12+100*rc; goto fail;}
 			break;
 		default:
@@ -556,36 +565,36 @@ int process_capture(unsigned int pixelformat, char *st, int dx, int dy, int pitc
 			ee=-13; goto fail;
 	}
 
-	rc =  process_whitebalance(&imgConverted, cfgWB);
+	rc =  process_whitebalance(imgConverted, cfgWB);
 	if(rc<0){ee=-14+100*rc; goto fail;}
 
 	#ifdef WITH_OPENCV
 	{
-		rc =  openCV_example(&imgConverted, &imgConverted);
+		rc =  openCV_example(imgConverted, imgConverted);
 		if(rc<0){ee=-15+100*rc; goto fail;}
 	}
 	#endif
 
 	if(1==stdOutIff1)
 	{
-		print_image_to_stdout(&imgConverted, imgConverted.dy/50, 1);
+		print_image_to_stdout(imgConverted, imgConverted->dy/50, 1);
 	}
 
 	if(1==netSrvOutIff1)
 	{
-		rc =  copy_image(&imgConverted, &(imgnetCfg->img));
+		rc =  copy_image(imgConverted, &(imgnetCfg->img));
 		if(rc<0){ee=-16+100*rc; goto fail;}
 	}
 
 	if(1==fbOutIff1)
 	{
-		if(IMAGE_GREY==imgConverted.type)
+		if(IMAGE_GREY==imgConverted->type)
 		{
-			rc =  copy_image_to_framebuffer(pcFramebufferDev, imgConverted.st, imgConverted.st,    imgConverted.st,    imgConverted.dy, imgConverted.pitch);
+			rc =  copy_image_to_framebuffer(pcFramebufferDev, imgConverted->st, imgConverted->st,    imgConverted->st,    imgConverted->dy, imgConverted->pitch);
 		}
 		else
 		{
-			rc =  copy_image_to_framebuffer(pcFramebufferDev, imgConverted.st, imgConverted.ccmp1, imgConverted.ccmp2, imgConverted.dy, imgConverted.pitch);
+			rc =  copy_image_to_framebuffer(pcFramebufferDev, imgConverted->st, imgConverted->ccmp1, imgConverted->ccmp2, imgConverted->dy, imgConverted->pitch);
 		}
 		if(rc<0){ee=-17+100*rc; goto fail;}
 	}
@@ -594,14 +603,13 @@ int process_capture(unsigned int pixelformat, char *st, int dx, int dy, int pitc
 	{
 		snprintf(acFilename, 255, "img%05d", frameNr);
 
-		rc =  write_image_as_pnm(acFilename, &imgConverted);
+		rc =  write_image_as_pnm(acFilename, imgConverted);
 		if(rc<0){ee=-18+100*rc; goto fail;}
 	}
 
 
 	ee=0;
 fail:
-	if(NULL!=imgConverted.st){ free(imgConverted.st);  imgConverted.st=NULL; }
 
 	return(ee);
 }
