@@ -39,7 +39,7 @@ The demo per default outputs as ASCII art. You can adjust exposure (shutter) and
 ```
 
 ## Image streaming to a framebuffer
-If you have a display attached and a kernel with framebuffer support, you can get a better image output by streaming it to the framebuffer. Suppress the default ASCII art output with -a and active the framebuffer output with ```-f```.
+If you have a display attached and a kernel with framebuffer support, you can get a better image output by streaming it to the framebuffer. Suppress the default ASCII art output with ```-a``` and activate the framebuffer output with ```-f```.
 ``` 
   # ./vcmipidemo -af -s 1000 -g 10
 ```
