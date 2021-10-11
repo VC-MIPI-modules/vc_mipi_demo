@@ -1,6 +1,8 @@
 
 # Vision Components MIPI CSI-2 demo software
 
+## Version 0.5.0
+
 ## Prerequisites for cross-compiling
 ### Host PC
 * Recommended OS is Ubuntu 18.04 LTS or Ubuntu 20.04 LTS
