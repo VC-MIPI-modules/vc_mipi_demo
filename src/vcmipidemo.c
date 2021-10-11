@@ -62,7 +62,7 @@
 
 #define  DEMO_NAME          "vcmipidemo"
 #define  DEMO_MAINVERSION    (  0)  /**<  Main Version: X.-.-   */
-#define  DEMO_VERSION        (  3)  /**<       Version: -.X.-   */
+#define  DEMO_VERSION        (  5)  /**<       Version: -.X.-   */
 #define  DEMO_SUBVERSION     (  0)  /**<    Subversion: -.-.X   */
 
 
@@ -638,17 +638,16 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *ga
 
 	cfgWB->mode = WBMODE_INACTIVE;
 
-	while((opt =  getopt(argc, argv, "abfnopy46:d:g:i:r:s:w:x:")) != -1)
+	while((opt =  getopt(argc, argv, "abfnopx46:d:g:i:r:s:w:y:")) != -1)
 	{
 		switch(opt)
 		{
 			default:
-				printf("_______________________________________________________________________________\n");
-				printf("                                                                               \n");
-				printf("  %s v.%d.%d.%d.\n", DEMO_NAME, DEMO_MAINVERSION, DEMO_VERSION, DEMO_SUBVERSION);
-				printf("  -----------------------------------------------------------------------------\n");
-				printf("                                                                               \n");
-				printf("  Usage: %s [-s<shutter>] [-g<gain>] [-i <num>] [-x<format>] [-f] [-a] [-o]\n", argv[0]);
+				printf("  Usage: vcmipidemo [-afnopx46] [-b<buffers>] [-d<device>]                     \n");
+				printf("                    [-i<num>] [-y<format>] [-g<gain>] [-s<shutter>]            \n");
+				printf("                    [-r<'(X,Y)/WIDTHxHEIGHT'>]                                 \n");
+				printf("                    [-w<'RED GREEN BLUE'>]                                     \n");
+				printf("  version %d.%d.%d\n", DEMO_MAINVERSION, DEMO_VERSION, DEMO_SUBVERSION);
 				printf("                                                                               \n");
 				printf("  -a,  Suppress ASCII capture at stdout.                                       \n");
 				printf("  -b,  Buffer Count to use.                                                    \n");
@@ -656,7 +655,7 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *ga
 				printf("  -f,  Output Capture to framebuffer %s. (Some platforms show their framebuffer\n", pcFramebufferDev);
 				printf("       after pressing a Ctrl+Alt+F1-7 key combination)                         \n");
 				printf("  -g,  Gain Value.                                                             \n");
-				printf("  -i,  This Number of Images will be recorded, else continuously.              \n");
+				printf("  -i,  This Number of Images will be captured, else continuously.              \n");
 				printf("  -n,  Activates NVIDIA specific v4l2 controls handling.                       \n");
 				printf("  -o,  Output Captures to file in PGM or PPM format (openable by e.g. GIMP)    \n");
 				printf("  -p,  Output frames per second.                                               \n");
@@ -671,31 +670,30 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *ga
 				printf("       the shutter time so that all measured values are smaller than 200.      \n");
 				printf("       For example: -w '123 145 167'                                           \n");
 				printf("       Note that you may need also apply an IR filter for better visual colors.\n");
-				printf("  -x,  Output image info and the first 20 bytes of the image.                  \n");
+				printf("  -x,  Output image info and the first 20 bytes of the image in hex format.    \n");
+				printf("  -y,  Output image info and the first 20 bytes in different formats           \n");
 				printf("       1: Image data is formated in binary notation                            \n");
+				printf("       2: Output a decimal formated bayer pattern in the center of the image                            \n");
 				printf("       10: Image data is formated in decimal notation                          \n");
 				printf("       16: Image data is formated in hexadecimal notation                      \n");
-				printf("  -y,  Output a decimal formated bayer pattern in the center of the image      \n");
 				printf("  -4,  Apply a 4 bit right shift to the image raw data.                        \n");
 				printf("  -6,  Apply a 6 bit right shift to the image raw data.                        \n");
-				printf("_______________________________________________________________________________\n");
-				printf("                                                                               \n");
 				return(+1);
-			case 'a':  *stdOutIff1 = 0;             printf("Suppressing ASCII capture at stdout.\n" );  break;
-			case 'b':  *bufCount   = atol(optarg);  printf("Setting Buffer Count to %d.\n",*bufCount);  break;
+			case 'a':  *stdOutIff1 = 0;             printf("Suppressing ASCII capture at stdout.\n" );         break;
+			case 'b':  *bufCount   = atol(optarg);  printf("Setting Buffer Count to %d.\n",*bufCount);         break;
 			case 'd':  *videoDevId = atol(optarg);  printf("Using Video Device Id. %d:  /dev/video%d\n", *videoDevId, *videoDevId);break;
-			case 'f':  *fbOutIff1  = 1;             printf("Activating /dev/fb0 framebuffer output.\n");break;
-			case 'g':  *gain       = atoi(optarg);  printf("Setting Gain Value to %u.\n",   *gain   );  break;
-			case 'i':  *maxCaptures= atol(optarg);  printf("Take %d images.\n",*maxCaptures);           break;
-			case 'n':  *nvidiaCtls = 1;             printf("Activates NVIDIA controls handling.\n");    break;
-			case 'o':  *fileOutIff1= 1;             printf("Activating file output of captures.\n" );   break;
-			case 'p':  *fps= 1;                     printf("Output frames per second.\n" );             break;
+			case 'f':  *fbOutIff1  = 1;             printf("Activating /dev/fb0 framebuffer output.\n");       break;
+			case 'g':  *gain       = atoi(optarg);  printf("Setting Gain Value to %u.\n",   *gain   );         break;
+			case 'i':  *maxCaptures= atol(optarg);  printf("Take %d images.\n",*maxCaptures);                  break;
+			case 'n':  *nvidiaCtls = 1;             printf("Activates NVIDIA controls handling.\n");           break;
+			case 'o':  *fileOutIff1= 1;             printf("Activating file output of captures.\n" );          break;
+			case 'p':  *fps= 1;                     printf("Output frames per second.\n" );                    break;
 			case 'r':  if(4 == sscanf(optarg, "(%d,%d)/%dx%d", x0, y0, width, height)){ printf("Setting ROI: (x0,y0):(%d,%d), (dx,dy):(%d,%d)\n", *x0, *y0, *width, *height); } else { *x0 = *y0 = *width = *height = -1; }  break;
-			case 's':  *shutter    = atol(optarg);  printf("Setting Shutter Value to %u us.\n",*shutter);  break;
-			case 'x':  *imageInfo  = atoi(optarg);  printf("Printing image info for every acquired image.\n"); break;
-			case 'y':  *imageInfo  = 2;             printf("Printing bayer pattern.\n"); break;
-			case '4':  *bitShift   = 4;             printf("Image raw data will be shifted 4 bits right.\n"); break;
-			case '6':  *bitShift   = 6;             printf("Image raw data will be shifted 6 bits right.\n"); break;
+			case 's':  *shutter    = atol(optarg);  printf("Setting Shutter Value to %u us.\n",*shutter);      break;
+			case 'x':  *imageInfo  = 16;            printf("Printing image info for every acquired image.\n"); break;
+			case 'y':  *imageInfo  = atoi(optarg);  printf("Printing image info for every acquired image.\n"); break;
+			case '4':  *bitShift   = 4;             printf("Image raw data will be shifted 4 bits right.\n");  break;
+			case '6':  *bitShift   = 6;             printf("Image raw data will be shifted 6 bits right.\n");  break;
 			case 'w':
 			{
 				//at beginning of function:  cfgWB->mode = WBMODE_INACTIVE;
