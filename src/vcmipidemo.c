@@ -138,12 +138,12 @@ typedef struct
 static int  globVarQuitIff1 = 0;  // Will be set - for example - if CTRL-C is pressed,
 void  sig_handler(int signo);
 
-int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *gain, int *image, int *fbOutIff1, char *pcFramebufferDev, int *stdOutIff1, int *fileOutIff1, int *bufCount, int *videoDevId, int *width, int *height, int *x0, int *y0, int *imageInfo, int *bitShift, int *fps, VCWhiteBalCfg *cfgWB);
+int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *gain, int *image, int *fbOutIff1, char *pcFramebufferDev, int *stdOutIff1, int *fileOutIff1, int *bufCount, int *videoDevId, int *width, int *height, int *x0, int *y0, int *imageInfo, int *bitShift, int *nvidiaCtls, int *fps, VCWhiteBalCfg *cfgWB);
 int  media_set_roi(char *pcVideoDev, int optX0, int optY0, int optWidth, int optHeight);
 int  sensor_open(char *dev_video_device, VCMipiSenCfg *sen, unsigned int qBufCount);
 int  sensor_close(VCMipiSenCfg *sen);
 int  sensor_set_shutter_gain(VCMipiSenCfg  *sen, int newGain, int newShutter);
-int  sensor_set_shutter_gain2(VCMipiSenCfg  *sen, int newGain, int newShutter);
+int  sensor_set_shutter_gain_nvidia(VCMipiSenCfg  *sen, int newGain, int newShutter);
 int  sensor_set_cropping_roi(VCMipiSenCfg  *sen, int newX0, int newY0, int newWidth, int newHeight);
 int  sensor_streaming_start(VCMipiSenCfg *sen);
 int  sensor_streaming_stop(VCMipiSenCfg *sen);
@@ -170,7 +170,7 @@ I32  fill_image_with_pattern(image *imgOut, image *imgPat);
 I32  fill_image_with_hourglasses(image *imgOut);
 I32  fill_framebuffer_with_hourglasses(char *pcFramebufferDev, I32 dx, I32 dy);
 void print_image_to_stdout(image *img, int stp, int goUpIff1);
-void print_image_info(int sequence, long ts1, long ts2, unsigned int pixelformat, char *st, int dx, int dy, int pitch);
+void print_image_info(int sequence, long ts1, long ts2, unsigned int pixelformat, char *st, int dx, int dy, int pitch, int format);
 void print_bayer_pattern(char *st, int x, int y, int pitch);
 void timemeasurement_start(struct  timeval *timer);
 void timemeasurement_stop(struct  timeval *timer, I64 *s, I64 *us);
@@ -218,9 +218,8 @@ int  main(int argc, char *argv[])
 	int            ee, rc=0; unsigned int bufIdx;
 	int            netSrvIff1 = 0;
 	int            frameNr=0;
-	int            optShutter, optMaxCaptures, optFBOutIff1, optStdOutIff1, optBufCount, optFileOutIff1, optVideoDevId;
-	int            optWidth, optHeight, optX0, optY0, bitShift, imageInfo, fps;
-	float          optGain;
+	int            optGain, optShutter, optMaxCaptures, optFBOutIff1, optStdOutIff1, optBufCount, optFileOutIff1, optVideoDevId;
+	int            optWidth, optHeight, optX0, optY0, bitShift, nvidiaCtls, imageInfo, fps;
 	VCMipiSenCfg   sen          = NULL_VCMipiSenCfg;
 	image  	       imgConverted = NULL_IMAGE;
 	VCImgNetCfg    imgnetCfg    = NULL_VCImgNetCfg;
@@ -251,13 +250,14 @@ int  main(int argc, char *argv[])
 		optY0          = -1;
 		imageInfo      = -1;
 		bitShift       = -1;
+		nvidiaCtls     = -1;
 		fps            = -1;
 
 		optMaxCaptures = -1;
 
 		rc =  change_options_by_commandline(argc, argv, &optShutter, &optGain, &optMaxCaptures, &optFBOutIff1, acFramebufferDev,
 			&optStdOutIff1, &optFileOutIff1, &optBufCount, &optVideoDevId, &optWidth, &optHeight, &optX0, &optY0, 
-			&imageInfo, &bitShift, &fps, &cfgWB);
+			&imageInfo, &bitShift, &nvidiaCtls, &fps, &cfgWB);
 		if(rc>0){ee=0; goto quit;}
 		if(rc<0){ee=-2+100*rc; goto quit;}
 
@@ -291,7 +291,11 @@ int  main(int argc, char *argv[])
 
 	// Apply new Shutter and Gain Settings
 	{
-		rc =  sensor_set_shutter_gain2(&sen, optGain, optShutter);
+		if (1==nvidiaCtls) {
+			rc =  sensor_set_shutter_gain_nvidia(&sen, optGain, optShutter);
+		} else {
+			rc =  sensor_set_shutter_gain(&sen, optGain, optShutter);
+		}
 		if(rc<0)
 		{
 			printf("Warning:  Could not set Gain/Shutter!\n");
@@ -338,15 +342,15 @@ int  main(int argc, char *argv[])
 		}
 		last_timestamp = timestamp;
 
-		if(1==imageInfo) {
+		if(imageInfo>0) {
 			switch(sen.format.type)	{
 				case V4L2_BUF_TYPE_VIDEO_CAPTURE:
 					print_image_info(sequence, timestamp, frame_time, sen.format.fmt.pix.pixelformat, sen.qbuf[bufIdx].st[0], 
-						sen.format.fmt.pix.width, sen.format.fmt.pix.height, sen.format.fmt.pix.bytesperline);
+						sen.format.fmt.pix.width, sen.format.fmt.pix.height, sen.format.fmt.pix.bytesperline, imageInfo);
 					break;
 				case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 					print_image_info(sequence, timestamp, frame_time, sen.format.fmt.pix.pixelformat, sen.qbuf[bufIdx].st[0], 
-						sen.format.fmt.pix.width, sen.format.fmt.pix.height, sen.format.fmt.pix_mp.plane_fmt[0].bytesperline);
+						sen.format.fmt.pix.width, sen.format.fmt.pix.height, sen.format.fmt.pix_mp.plane_fmt[0].bytesperline, imageInfo);
 					break;
 			}
 		}
@@ -386,7 +390,7 @@ int  main(int argc, char *argv[])
 			elapsed_time = timestamp - start_timestamp;
 			if(elapsed_time >= 1000) {
 				elapsed_sequence = sequence - start_sequence;
-				printf("Captured FPS: %.1f (%u frames in %ld ms) %d dropped - Processed FPS: %.1f (%u frames in %ld ms)\n", 
+				printf("Captured FPS: %.3f (%u frames in %ld ms) %d dropped - Processed FPS: %.3f (%u frames in %ld ms)\n", 
 					elapsed_sequence*1000.0/elapsed_time, elapsed_sequence, elapsed_time, dropped_sequence,
 					processed_sequence*1000.0/elapsed_time, processed_sequence, elapsed_time);
 				start_timestamp = 0;
@@ -625,13 +629,16 @@ fail:
 *  This function parses command line parameters.
 */
 /*-----------------------------------------------------------------------------*/
-int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *gain, int *maxCaptures, int *fbOutIff1, char *pcFramebufferDev, int *stdOutIff1, int *fileOutIff1, int *bufCount, int *videoDevId, int *width, int *height, int *x0, int *y0, int *imageInfo, int *bitShift, int *fps, VCWhiteBalCfg *cfgWB)
+int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *gain, int *maxCaptures, int *fbOutIff1, 
+	char *pcFramebufferDev, int *stdOutIff1, int *fileOutIff1, int *bufCount, int *videoDevId, 
+	int *width, int *height, int *x0, int *y0, int *imageInfo, int *bitShift, int *nvidiaCtls,
+	int *fps, VCWhiteBalCfg *cfgWB)
 {
 	int  opt;
 
 	cfgWB->mode = WBMODE_INACTIVE;
 
-	while((opt =  getopt(argc, argv, "g:s:i:xy46fpab:od:r:w:")) != -1)
+	while((opt =  getopt(argc, argv, "abfnopy46:d:g:i:r:s:w:x:")) != -1)
 	{
 		switch(opt)
 		{
@@ -641,7 +648,7 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *
 				printf("  %s v.%d.%d.%d.\n", DEMO_NAME, DEMO_MAINVERSION, DEMO_VERSION, DEMO_SUBVERSION);
 				printf("  -----------------------------------------------------------------------------\n");
 				printf("                                                                               \n");
-				printf("  Usage: %s [-s sh] [-g gain] [-i nr] [-f] [-a] [-o]\n", argv[0]);
+				printf("  Usage: %s [-s<shutter>] [-g<gain>] [-i <num>] [-x<format>] [-f] [-a] [-o]\n", argv[0]);
 				printf("                                                                               \n");
 				printf("  -a,  Suppress ASCII capture at stdout.                                       \n");
 				printf("  -b,  Buffer Count to use.                                                    \n");
@@ -650,6 +657,7 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *
 				printf("       after pressing a Ctrl+Alt+F1-7 key combination)                         \n");
 				printf("  -g,  Gain Value.                                                             \n");
 				printf("  -i,  This Number of Images will be recorded, else continuously.              \n");
+				printf("  -n,  Activates NVIDIA specific v4l2 controls handling.                       \n");
 				printf("  -o,  Output Captures to file in PGM or PPM format (openable by e.g. GIMP)    \n");
 				printf("  -p,  Output frames per second.                                               \n");
 				printf("  -r,  Region of interest:  (Left,Top)/WidthxHeight'                           \n");
@@ -663,7 +671,10 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *
 				printf("       the shutter time so that all measured values are smaller than 200.      \n");
 				printf("       For example: -w '123 145 167'                                           \n");
 				printf("       Note that you may need also apply an IR filter for better visual colors.\n");
-				printf("  -x,  Output image info and the first 20 bytes of the image in hex notation.  \n");
+				printf("  -x,  Output image info and the first 20 bytes of the image.                  \n");
+				printf("       1: Image data is formated in binary notation                            \n");
+				printf("       10: Image data is formated in decimal notation                          \n");
+				printf("       16: Image data is formated in hexadecimal notation                      \n");
 				printf("  -y,  Output a decimal formated bayer pattern in the center of the image      \n");
 				printf("  -4,  Apply a 4 bit right shift to the image raw data.                        \n");
 				printf("  -6,  Apply a 6 bit right shift to the image raw data.                        \n");
@@ -674,13 +685,14 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, float *
 			case 'b':  *bufCount   = atol(optarg);  printf("Setting Buffer Count to %d.\n",*bufCount);  break;
 			case 'd':  *videoDevId = atol(optarg);  printf("Using Video Device Id. %d:  /dev/video%d\n", *videoDevId, *videoDevId);break;
 			case 'f':  *fbOutIff1  = 1;             printf("Activating /dev/fb0 framebuffer output.\n");break;
-			case 'g':  *gain       = atof(optarg);  printf("Setting Gain Value to %f.\n",   *gain   );  break;
+			case 'g':  *gain       = atoi(optarg);  printf("Setting Gain Value to %u.\n",   *gain   );  break;
 			case 'i':  *maxCaptures= atol(optarg);  printf("Take %d images.\n",*maxCaptures);           break;
+			case 'n':  *nvidiaCtls = 1;             printf("Activates NVIDIA controls handling.\n");    break;
 			case 'o':  *fileOutIff1= 1;             printf("Activating file output of captures.\n" );   break;
 			case 'p':  *fps= 1;                     printf("Output frames per second.\n" );             break;
 			case 'r':  if(4 == sscanf(optarg, "(%d,%d)/%dx%d", x0, y0, width, height)){ printf("Setting ROI: (x0,y0):(%d,%d), (dx,dy):(%d,%d)\n", *x0, *y0, *width, *height); } else { *x0 = *y0 = *width = *height = -1; }  break;
-			case 's':  *shutter    = atol(optarg);  printf("Setting Shutter Value to %d.\n",*shutter);  break;
-			case 'x':  *imageInfo  = 1;             printf("Printing image info for every acquired image.\n"); break;
+			case 's':  *shutter    = atol(optarg);  printf("Setting Shutter Value to %u us.\n",*shutter);  break;
+			case 'x':  *imageInfo  = atoi(optarg);  printf("Printing image info for every acquired image.\n"); break;
 			case 'y':  *imageInfo  = 2;             printf("Printing bayer pattern.\n"); break;
 			case '4':  *bitShift   = 4;             printf("Image raw data will be shifted 4 bits right.\n"); break;
 			case '6':  *bitShift   = 6;             printf("Image raw data will be shifted 6 bits right.\n"); break;
@@ -1430,7 +1442,7 @@ int set_exposure(int fd, int value)
         return ioctl(fd, VIDIOC_S_CTRL, &control);
 }
 
-int sensor_set_shutter_gain2(VCMipiSenCfg  *sen, int newGain, int newShutter)
+int sensor_set_shutter_gain(VCMipiSenCfg  *sen, int newGain, int newShutter)
 {
 	int ret = 0;
 	
@@ -1449,7 +1461,7 @@ int sensor_set_shutter_gain2(VCMipiSenCfg  *sen, int newGain, int newShutter)
 *  When the settings become operational depends on the sensor and its configuration.
 */
 /*-----------------------------------------------------------------------------*/
-int  sensor_set_shutter_gain(VCMipiSenCfg  *sen, int newGain, int newShutter)
+int  sensor_set_shutter_gain_nvidia(VCMipiSenCfg  *sen, int newGain, int newShutter)
 {
 	I32    ee, rc, target, getOrSet;
 	U32    val;
@@ -1988,11 +2000,40 @@ void  print_image_to_stdout(image *img,  int stp, int goUpIff1)
 	fflush(NULL);
 }
 
-// *** VC MIPI ********************************************************
-void print_line_byte(char *st, int x1, int x2, int y, int pitch)
+void print_line_byte_hex(char *st, int x1, int x2, int y, int pitch)
 {
 	for (int x=x1; x<=x2; x=x+2) {
-		printf("%02x%02x ", st[y*pitch + x], st[y*pitch + x+1]);
+		U8 val1 = st[y*pitch + x];
+		U8 val2 = st[y*pitch + x+1];
+		printf("%02x%02x ", val1, val2);
+	}
+	printf("\n");
+}
+
+void print_line_dec(char *st, int x1, int x2, int y, int pitch)
+{
+	for (int x=x1; x<=x2; x=x+2) {
+		U16 val16 = *(U16 *)&st[y*pitch + x];
+		printf("%04u ", val16);
+	}
+	printf("\n");
+}
+
+void print_byte_bit(char val)
+{
+	for(int b=7; b>=0; b--) {
+		printf("%u", (U8)((val >> b) & 0x01));
+	}
+}
+
+void print_line_bit(char *st, int x1, int x2, int y, int pitch)
+{
+	for (int x=x1; x<=x2; x=x+2) {
+		U8 val1 = st[y*pitch + x];
+		U8 val2 = st[y*pitch + x+1];
+		print_byte_bit(val2);
+		print_byte_bit(val1);
+		print(" ");
 	}
 	printf("\n");
 }
@@ -2009,31 +2050,21 @@ void print_bayer_pattern(char *st, int x, int y, int pitch)
 	printf("             %4d %4d\n",     val3, val4);
 }
 
-void print_line_bit(char *st, int x1, int x2, int y, int pitch)
-{
-	for (int x=x1; x<=x2; x++) {
-		char val = st[y*pitch + x];
-		for(int b=7; b>=0; b--) {
-			printf("%u", (U8)((val >> b) & 0x01));
-		}
-		print(" ");
-	}
-	printf("\n");
-}
-
-void print_image_info(int sequence, long ts1, long ts2, unsigned int pixelformat, char *st, int dx, int dy, int pitch)
+void print_image_info(int sequence, long ts1, long ts2, unsigned int pixelformat, char *st, int dx, int dy, int pitch, int format)
 {
 	int x = 0;
 	int y = 0;
 	int count = 20;
 	
-	// printf("img.org (fmt: %c%c%c%c, dx: %u, dy: %u, pitch: %u) - ", 
-	// 	(pixelformat >> 0 & 0xFF), (pixelformat >> 8 & 0xFF), (pixelformat >> 16 & 0xFF), (pixelformat >> 24 & 0xFF), 
-	// 	dx, dy, pitch);
-	printf("[#%04d, ts:%8ld, t:%4ld ms] (dx: %u, dy: %u, pitch: %u) - ", sequence, ts1, ts2, dx, dy, pitch);
-	print_line_byte(st, x, x + count-1, y, pitch);
+	printf("[#%04d, ts:%8ld, t:%4ld ms] (fmt: %c%c%c%c, dx: %u, dy: %u, pitch: %u) - ", sequence, ts1, ts2, 
+		(pixelformat >> 0 & 0xFF), (pixelformat >> 8 & 0xFF), (pixelformat >> 16 & 0xFF), (pixelformat >> 24 & 0xFF), 
+		dx, dy, pitch);
+	switch(format) {
+	case 1:  print_line_bit(st, x, x + 4, y, pitch); break;
+	case 10: print_line_dec(st, x, x + count-2, y, pitch); break;
+	case 16: print_line_byte_hex(st, x, x + count-2, y, pitch); break;
+	}
 }
-// ********************************************************************
 
 
 
