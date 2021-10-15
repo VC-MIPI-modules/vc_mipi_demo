@@ -21,6 +21,8 @@ flash_all() {
         scp $SRC_DIR/vcimgnetsrv $TARGET_USER@$TARGET_IP:/home/$TARGET_USER/test
 }
 
+cd $(dirname $0)
+
 while [ $# != 0 ] ; do
 	option="$1"
 	shift

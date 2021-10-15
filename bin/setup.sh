@@ -30,6 +30,8 @@ setup_toolchain() {
         rm gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu.tar.xz
 }
 
+cd $(dirname $0)
+
 while [ $# != 0 ] ; do
 	option="$1"
 	shift

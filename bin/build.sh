@@ -20,6 +20,8 @@ build_all() {
         make
 }
 
+cd $(dirname $0)
+
 while [ $# != 0 ] ; do
 	option="$1"
 	shift
