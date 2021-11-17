@@ -638,7 +638,7 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *ga
 
 	cfgWB->mode = WBMODE_INACTIVE;
 
-	while((opt =  getopt(argc, argv, "abfnopx46:d:g:i:r:s:w:y:")) != -1)
+	while((opt =  getopt(argc, argv, "abfnopx46d:g:i:r:s:w:y:")) != -1)
 	{
 		switch(opt)
 		{
