@@ -1,6 +1,3 @@
-
-CC=aarch64-none-linux-gnu-gcc
-
 .PHONY: all
 
 all: vcimgnetsrv vcmipidemo
