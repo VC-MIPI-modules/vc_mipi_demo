@@ -30,6 +30,9 @@
 #ifndef V4L2_PIX_FMT_Y14P
  #define V4L2_PIX_FMT_Y14P    v4l2_fourcc('Y', '1', '4', 'P') /* 14  Greyscale, MIPI RAW14 packed */
 #endif
+#ifndef V4L2_PIX_FMT_Y14
+ #define V4L2_PIX_FMT_Y14    v4l2_fourcc('Y', '1', '4', ' ') /* 14  Greyscale, MIPI RAW14 */
+#endif
 #ifndef V4L2_PIX_FMT_Y12P
  #define V4L2_PIX_FMT_Y12P    v4l2_fourcc('Y', '1', '2', 'P') /* 12  Greyscale, MIPI RAW12 packed */
 #endif
@@ -493,6 +496,7 @@ int process_capture(image *imgConverted, unsigned int pixelformat, char *st, int
 				break;
 			case V4L2_PIX_FMT_GREY:
 			case V4L2_PIX_FMT_Y14P:
+			case V4L2_PIX_FMT_Y14:
 			case V4L2_PIX_FMT_Y12P:
 			case V4L2_PIX_FMT_Y12:
 			case V4L2_PIX_FMT_Y10:
@@ -524,40 +528,44 @@ int process_capture(image *imgConverted, unsigned int pixelformat, char *st, int
 				rc =  convert_raw14_to_image(imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (14 * dx)/8);
 				if(rc<0){ee=-4+100*rc; goto fail;}
 			break;
+		case V4L2_PIX_FMT_Y14:
+				rc =  convert_16bit_to_image(imgConverted,  st, dx, dy, dx, 12, bitShift);
+				if(rc<0){ee=-5+100*rc; goto fail;}
+			break;
 		case V4L2_PIX_FMT_Y12P:
 				rc =  convert_raw12_to_image(imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (12 * dx)/8);
-				if(rc<0){ee=-5+100*rc; goto fail;}
+				if(rc<0){ee=-6+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y12:
 				rc =  convert_16bit_to_image(imgConverted,  st, dx, dy, dx, 12, bitShift);
-				if(rc<0){ee=-6+100*rc; goto fail;}
+				if(rc<0){ee=-7+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y10:
 				rc =  convert_16bit_to_image(imgConverted,  st, dx, dy, dx, 10, bitShift);
-				if(rc<0){ee=-7+100*rc; goto fail;}
+				if(rc<0){ee=-8+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_Y10P:
 				rc =  convert_raw10_to_image(imgConverted,  st, 0,  0, 0, dx, dy, dx, pitch - (10 * dx)/8);
-				if(rc<0){ee=-8+100*rc; goto fail;}
+				if(rc<0){ee=-9+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_SRGGB10P:
 		case V4L2_PIX_FMT_SBGGR10P:
 				rc =  convert_raw10_and_debayer_image(imgConverted, st, pixelformat, 0,  0, 0, dx, dy, dx, pitch - (10 * dx)/8);
-				if(rc<0){ee=-9+100*rc; goto fail;}
+				if(rc<0){ee=-10+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_SRGGB10: //or RG10
 		case V4L2_PIX_FMT_SBGGR10: //or BG10
 				rc =  convert_srggb10_and_debayer_image(imgConverted, st, pixelformat, dx, dy, dx, 10, bitShift);
-				if(rc<0){ee=-10+100*rc; goto fail;}
+				if(rc<0){ee=-11+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_SRGGB8:
 		case V4L2_PIX_FMT_SBGGR8:
 				rc =  simple_debayer_to_image(imgConverted, st, pixelformat, 0, 0, dx, dy, dx, 0);
-				if(rc<0){ee=-11+100*rc; goto fail;}
+				if(rc<0){ee=-12+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_YUYV:
 				rc =  convert_yuyv_to_image(imgConverted, st, 0, 0, dx, dy, dx, 0);
-				if(rc<0){ee=-12+100*rc; goto fail;}
+				if(rc<0){ee=-13+100*rc; goto fail;}
 			break;
 		default:
 			printf("Error, Pixelformat unsupported: %c%c%c%c (0x%08x)\n",
@@ -638,7 +646,7 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *ga
 
 	cfgWB->mode = WBMODE_INACTIVE;
 
-	while((opt =  getopt(argc, argv, "abfnopx46d:g:i:r:s:w:y:")) != -1)
+	while((opt =  getopt(argc, argv, "abfnopx246d:g:i:r:s:w:y:")) != -1)
 	{
 		switch(opt)
 		{
@@ -676,6 +684,7 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *ga
 				printf("       2: Output a decimal formated bayer pattern in the center of the image                            \n");
 				printf("       10: Image data is formated in decimal notation                          \n");
 				printf("       16: Image data is formated in hexadecimal notation                      \n");
+				printf("  -2,  Apply a 2 bit left shift to the image raw data.                         \n");
 				printf("  -4,  Apply a 4 bit right shift to the image raw data.                        \n");
 				printf("  -6,  Apply a 6 bit right shift to the image raw data.                        \n");
 				return(+1);
@@ -692,6 +701,7 @@ int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *ga
 			case 's':  *shutter    = atol(optarg);  printf("Setting Shutter Value to %u us.\n",*shutter);      break;
 			case 'x':  *imageInfo  = 16;            printf("Printing image info for every acquired image.\n"); break;
 			case 'y':  *imageInfo  = atoi(optarg);  printf("Printing image info for every acquired image.\n"); break;
+			case '2':  *bitShift   = 2;             printf("Image raw data will be shifted 2 bits left.\n");   break;
 			case '4':  *bitShift   = 4;             printf("Image raw data will be shifted 4 bits right.\n");  break;
 			case '6':  *bitShift   = 6;             printf("Image raw data will be shifted 6 bits right.\n");  break;
 			case 'w':
@@ -2269,6 +2279,29 @@ inline void  FL_CPY_12AS16BIT_U8P(U32 count, char *bufIn, U8 *bufOut)
 	}
 }
 
+inline void  FL_CPY_16AS16BIT_U8P_BITSHIFT2(U32 count, char *bufIn, U8 *bufOut)
+{
+	while(count >= 8)
+	{
+		U64 in1;
+
+		in1 = *((U64*)bufIn);
+		in1 = in1 << 2;
+
+		*bufOut = *(((U8*)&in1)+1);
+		bufOut++;
+		*bufOut = *(((U8*)&in1)+3);
+		bufOut++;
+		*bufOut = *(((U8*)&in1)+5);
+		bufOut++;
+		*bufOut = *(((U8*)&in1)+7);
+		bufOut++;
+
+		bufIn+=8;
+
+		count -= 4;
+	}
+}
 
 /*--*FUNCTION*-----------------------------------------------------------------*/
 /**
@@ -2309,7 +2342,18 @@ I32  convert_16bit_to_image(image *imgOut, char *bufIn, I32 v4lDx, I32 v4lDy, I3
 		case 10:
 		{
 			// *** VC MIPI ****************************************
-			if (bitShift == 4) {
+			if (bitShift == 2) {
+				#if _OPENMP
+					#   pragma omp parallel for
+				#endif			
+				for(y= 0; y< min(imgOut->dy,v4lDy); y++)
+				{
+					char *in  =       bufIn + y * (2*v4lPitch);
+					U8   *out =  imgOut->st + y * imgOut->pitch;
+
+					FL_CPY_16AS16BIT_U8P_BITSHIFT2(dx, in, out);
+				}
+			} else if (bitShift == 4) {
 				#if _OPENMP
 					#   pragma omp parallel for
 				#endif			
@@ -2348,15 +2392,44 @@ I32  convert_16bit_to_image(image *imgOut, char *bufIn, I32 v4lDx, I32 v4lDy, I3
 		break;
 		case 12:
 		{
-			#if _OPENMP
-			#   pragma omp parallel for
-			#endif
-			for(y= 0; y< min(imgOut->dy,v4lDy); y++)
-			{
-				char *in  =       bufIn + y * (2*v4lPitch);
-				U8   *out =  imgOut->st + y * imgOut->pitch;
+			if (bitShift == 2) {
+				#if _OPENMP
+				#   pragma omp parallel for
+				#endif
+				for(y= 0; y< min(imgOut->dy,v4lDy); y++)
+				{
+					char *in  =       bufIn + y * (2*v4lPitch);
+					U8   *out =  imgOut->st + y * imgOut->pitch;
 
-				FL_CPY_12AS16BIT_U8P(dx, in, out);
+					FL_CPY_16AS16BIT_U8P_BITSHIFT2(dx, in, out);
+				}
+			} else {
+				#if _OPENMP
+				#   pragma omp parallel for
+				#endif
+				for(y= 0; y< min(imgOut->dy,v4lDy); y++)
+				{
+					char *in  =       bufIn + y * (2*v4lPitch);
+					U8   *out =  imgOut->st + y * imgOut->pitch;
+
+					FL_CPY_12AS16BIT_U8P(dx, in, out);
+				}
+			}
+		}
+		break;
+		case 14:
+		{
+			if (bitShift == 2) {
+				#if _OPENMP
+				#   pragma omp parallel for
+				#endif
+				for(y= 0; y< min(imgOut->dy,v4lDy); y++)
+				{
+					char *in  =       bufIn + y * (2*v4lPitch);
+					U8   *out =  imgOut->st + y * imgOut->pitch;
+
+					FL_CPY_16AS16BIT_U8P_BITSHIFT2(dx, in, out);
+				}
 			}
 		}
 		break;
