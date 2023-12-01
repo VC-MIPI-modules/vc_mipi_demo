@@ -1,7 +1,7 @@
 
 # Vision Components MIPI CSI-2 demo software
 
-## Version 0.5.0
+## Version 0.6.0
 
 ## Prerequisites for cross-compiling
 ### Host PC
