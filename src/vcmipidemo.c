@@ -139,7 +139,7 @@ typedef struct
 
 static int  globVarQuitIff1 = 0;  // Will be set - for example - if CTRL-C is pressed,
 void  sig_handler(int signo);
-
+int  is_nvidia_platform();
 int  change_options_by_commandline(int argc, char *argv[], int *shutter, int *gain, int *image, int *fbOutIff1, char *pcFramebufferDev, int *stdOutIff1, int *fileOutIff1, int *bufCount, int *videoDevId, int *width, int *height, int *x0, int *y0, int *imageInfo, int *bitShift, int *nvidiaCtls, int *fps, VCWhiteBalCfg *cfgWB);
 int  sensor_open(char *dev_video_device, VCMipiSenCfg *sen, unsigned int qBufCount);
 int  sensor_close(VCMipiSenCfg *sen);
@@ -251,7 +251,7 @@ int  main(int argc, char *argv[])
 		optY0          = -1;
 		imageInfo      = -1;
 		bitShift       = -1;
-		nvidiaCtls     = -1;
+		nvidiaCtls     = is_nvidia_platform();
 		fps            = -1;
 
 		optMaxCaptures = -1;
@@ -619,6 +619,31 @@ int process_capture(image *imgConverted, unsigned int pixelformat, char *st, int
 fail:
 
 	return(ee);
+}
+
+
+
+
+
+/*--*FUNCTION*-----------------------------------------------------------------*/
+/**
+* @brief  Checks if the platform is from NVIDIA.
+*/
+/*-----------------------------------------------------------------------------*/
+int is_nvidia_platform() 
+{
+	char compatible[100];
+	int is_nvidia_platform = -1;
+	int fd = fd = open("/sys/firmware/devicetree/base/compatible", O_RDONLY, 0);
+	if (fd) {
+		if (read(fd, compatible, 100)) {
+			if (strstr(compatible, "nvidia")) {
+				is_nvidia_platform = 1;
+			}
+		}
+	}
+	close(fd);
+	return is_nvidia_platform;
 }
 
 
