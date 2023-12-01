@@ -488,6 +488,7 @@ int process_capture(image *imgConverted, unsigned int pixelformat, char *st, int
 			case V4L2_PIX_FMT_SRGGB10P:
 			case V4L2_PIX_FMT_SBGGR10P:
 			case V4L2_PIX_FMT_SRGGB10: //or RG10
+			case V4L2_PIX_FMT_SGBRG10: //or GB10
 			case V4L2_PIX_FMT_SBGGR10: //or BG10
 			case V4L2_PIX_FMT_SRGGB8:
 			case V4L2_PIX_FMT_SBGGR8:
@@ -554,6 +555,7 @@ int process_capture(image *imgConverted, unsigned int pixelformat, char *st, int
 				if(rc<0){ee=-10+100*rc; goto fail;}
 			break;
 		case V4L2_PIX_FMT_SRGGB10: //or RG10
+		case V4L2_PIX_FMT_SGBRG10: //or GB10
 		case V4L2_PIX_FMT_SBGGR10: //or BG10
 				rc =  convert_srggb10_and_debayer_image(imgConverted, st, pixelformat, dx, dy, dx, 10, bitShift);
 				if(rc<0){ee=-11+100*rc; goto fail;}
@@ -955,12 +957,6 @@ int  sensor_open(char *dev_video_device, VCMipiSenCfg *sen, unsigned int qbufCou
 			rc = ioctl(sen->fd, VIDIOC_G_FMT, &(sen->format));
 			if(rc<0){ continue; }
 
-			// *** VC MIPI ****************************************
-			// Workaround 
-			if(sen->format.fmt.pix.pixelformat == V4L2_PIX_FMT_SGBRG10) {
-				sen->format.fmt.pix.pixelformat = V4L2_PIX_FMT_SRGGB10;
-			}
-			// ****************************************************
 
 			// Trying to Request an Unpacked Format Variant if Format is Packed
 			{
@@ -3268,8 +3264,11 @@ I32  simple_debayer_to_image(image *imgOut, char *bufIn, unsigned int pixelforma
 		case V4L2_PIX_FMT_SRGGB10P:
 		case V4L2_PIX_FMT_SRGGB10: //or RG10
 		case V4L2_PIX_FMT_SRGGB8:
+		case V4L2_PIX_FMT_SGBRG10P:
+		case V4L2_PIX_FMT_SGBRG10: //or GB10
+		case V4L2_PIX_FMT_SGBRG8:
 		case V4L2_PIX_FMT_SBGGR10P:
-		case V4L2_PIX_FMT_SBGGR10: //or RG10
+		case V4L2_PIX_FMT_SBGGR10: //or BG10
 		case V4L2_PIX_FMT_SBGGR8:
 			break;
 		default:
@@ -3297,6 +3296,15 @@ I32  simple_debayer_to_image(image *imgOut, char *bufIn, unsigned int pixelforma
 				o0  =  imgOut->st    + (y+0) * imgOut->pitch;
 				oG  =  imgOut->ccmp1 + (y+0) * imgOut->pitch;
 				o1  =  imgOut->ccmp2 + (y+0) * imgOut->pitch;
+				break;
+			case V4L2_PIX_FMT_SGBRG10P:
+			case V4L2_PIX_FMT_SGBRG10: //or GB10
+			case V4L2_PIX_FMT_SGBRG8:
+				// st is red, ccmp1 is green, ccmp2 is blue
+				// o0 is red, o1 is blue
+				o0  =  imgOut->st    + (y+0) * imgOut->pitch;
+				oG  =  imgOut->ccmp2 + (y+0) * imgOut->pitch;
+				o1  =  imgOut->st    + (y+0) * imgOut->pitch;
 				break;
 			case V4L2_PIX_FMT_SBGGR10P:
 			case V4L2_PIX_FMT_SBGGR10: //or RG10
