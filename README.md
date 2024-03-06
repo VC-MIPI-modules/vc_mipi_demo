@@ -1,6 +1,9 @@
 
 # Vision Components MIPI CSI-2 demo software
 
+> [!WARNING]
+> This project is no longer maintained. Please us `v4l2-test` (https://github.com/pmliquify/v4l2-test) instead.
+
 ## Version 0.6.0
 
 ## Prerequisites for cross-compiling
